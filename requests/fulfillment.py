@@ -14,10 +14,19 @@ def find_qualifying_coverage(claim: Claim, histories: tuple[TakeHistory, ...]):
     boundary = claim.admitted_after
     if boundary is None:
         return None
+    responsible = None
+    if claim.transfer is not None:
+        # A transferred claim can only be settled by the receiving session,
+        # with the window's first segment actually played after the transfer.
+        responsible = claim.transfer.to_session_id
+        boundary = max(boundary, claim.transfer.after_actual_id)
     window = claim.window
     required = window.last - window.first + 1
     for history in histories:
-        if history.take.version_id != window.version_id:
+        take = history.take
+        if take.version_id != window.version_id:
+            continue
+        if responsible is not None and take.session_id != responsible:
             continue
         selected = tuple(play for play in history.plays if window.first <= play.number <= window.last)
         if len(selected) != required or selected[0].actual_id <= boundary:
@@ -25,7 +34,7 @@ def find_qualifying_coverage(claim: Claim, histories: tuple[TakeHistory, ...]):
         start_position = selected[0].position
         if all(play.number == window.first + offset and play.position == start_position + offset
                for offset, play in enumerate(selected)):
-            return Coverage(history.take.take_id, tuple(play.actual_id for play in selected))
+            return Coverage(take.take_id, tuple(play.actual_id for play in selected))
     return None
 
 

@@ -25,6 +25,9 @@ def reconcile_session(library, field, ledger, session_id):
     own_takes = read_session_takes(field, session_id)
     version_takes = read_version_takes(field, version_id)
     claims = read_version_claims(ledger, field, version_id, version_takes)
+    # A transferred claim is only recorded in its receiving session's facts.
+    claims = tuple(claim for claim in claims
+                   if claim.transfer is None or claim.transfer.to_session_id == session_id)
     takes_by_id = {history.take.take_id: history for history in version_takes}
     evidence = {play.actual_id: play for history in own_takes for play in history.plays}
     for claim in claims:

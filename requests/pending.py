@@ -15,7 +15,7 @@ def claim_document(claim, *, review_needed=False):
         status = 'pending_review'
     else:
         status = 'pending'
-    return {
+    document = {
         'request_id': claim.request_id,
         'version_id': claim.window.version_id,
         'first': claim.window.first,
@@ -23,6 +23,9 @@ def claim_document(claim, *, review_needed=False):
         'status': status,
         'settlement': None if claim.settlement is None else asdict(claim.settlement),
     }
+    if claim.transfer is not None:
+        document['responsible_session_id'] = claim.transfer.to_session_id
+    return document
 
 
 def refresh_claim(open_ledger, read_history, claim):
@@ -49,6 +52,9 @@ def list_open_claims(library, open_ledger, register_boundary, read_history, sess
         claims = scan_version_claims(ledger, session.version_id)
     result = []
     for claim in claims:
+        if claim.transfer is not None and claim.transfer.to_session_id != session_id:
+            # A transferred claim waits only in its receiving session.
+            continue
         if claim.settlement is None:
             current = claim_read(open_ledger, register_boundary, read_history, claim.request_id)
             if current['status'] != 'settled':
